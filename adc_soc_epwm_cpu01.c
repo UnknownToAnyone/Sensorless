@@ -71,14 +71,8 @@ int DAC_ratio=100;
 #define two_pi 6.2831853072
 #define natual_constant 2.718281828459
 // Maximum Dead Band values
-#define EPWMx_MIN_DB   50
-Uint16 VF_1_and_FOC_2_Ctrl_flag = 0;
-Uint16 VF_CTRL = 1;
-Uint16 FOC_CTRL = 2;
-Uint16 Current_CTRL = 0;
-
-// ePWM variables
-Uint16 EPWM_period=2500; //10kHz
+#define EPWM_period 2500; //10kHz
+#define EPWMx_MIN_DB 20
 
 Uint16 CompareA_EPWM01_PhaseD_temp=0;
 Uint16 CompareA_EPWM02_PhaseE_temp=0;
@@ -138,7 +132,7 @@ PIDREG3 pid1_iq = iqid_PI__DEFAULTS;
 PIDREG3 pid1_ix = ixiy_PI__DEFAULTS;
 PIDREG3 pid1_iy = ixiy_PI__DEFAULTS;   //对xy子空间电流进行闭环控制
 
-Uint16 SpeedLoopPrescaler = 5;    //转速环预分频
+Uint16 SpeedLoopPrescaler = 10;    //转速环预分频
 //***************************************//
 
 //***********V/F************************//
@@ -368,7 +362,6 @@ float QEP_temp=0;
 Uint16 Sector = 0;
 Uint16 Sector_old = 0;
 Uint16 Sector_temp = 0;
-Uint16 PWM9_10KHz_flag = 0;
 
 
 
@@ -378,11 +371,6 @@ double t1=0,t2=0,t3=0,t4=0,t5=0,temp_sv1=0,temp_sv2=0;
 double t_sum=0;
 
 double tx1=0,tx2=0,tx3=0,tx4=0,tx5=0,tx6=0,tx7=0,tx8=0;
-
-float32 Tmin=0.1;        // Vector min周期, 100_PWM_Clock
-float32 Tmargin = 0.03;
-float32 Tshift = -0.01;
-float32 Delta_t = 0.04;   // 1 = 2500_PWM_Clock = 100us, 0.01 = 25 PWM_Clock
 
 Uint16 t_1_not_enough = 0, t_2_not_enough=0;
 Uint16 Add_negative_vector_flag = 0;
@@ -412,8 +400,6 @@ Uint16 SynchronisePWMs_start_flag = 0;
 Uint16 NVC_start_flag=0;
 Uint16 t1_negtive_vector_flag=0;
 Uint16 t2_negtive_vector_flag=0;
-double t1_compensation=0;
-double t2_compensation=0;
 
 Uint32 CPU1TOCPU2RAM_addr = 0x00003FC00;
 Uint32 CPU2TOCPU1RAM_addr = 0x00003F800;
@@ -576,10 +562,6 @@ float delta_t0=0.000006, delta_t1=0.000006, delta_t2=0.000006;
 float I_temp1=0.0,I_temp2=0.0,I_temp3=0.0,I_temp4=0.0;
 double Valpha1=0,Valpha2=0,Vbeta1=0,Vbeta2=0;
 //float Valpha1_test=0.0,Valpha2_test=0.0,Vbeta1_test=0.0,Vbeta2_test=0.0;
-
-float dIa_over_dt_test1=0;
-float dIa_over_dt_test2=0;
-float reciprocal_delta_t = 1;
 
 Uint16 Show_I_SP = 11;
 Uint16 speed_ratio =20;
@@ -852,12 +834,12 @@ int ssss=0;
 int counter=0;
 int qep_temp=0;
 int qep_i=0;
-float My_idq_Kp=3;
-float My_idq_Ki=1;
-float My_ixy_Kp=1;
-float My_ixy_Ki=1;
+float My_idq_Kp=5;
+float My_idq_Ki=500;
+float My_ixy_Kp=2;
+float My_ixy_Ki=100;
 float My_sp_kp=0.01;
-float My_sp_ki=0;
+float My_sp_ki=1;
 void Cal_function(void)
 {
 	speed_temp=SpeedRpm_Lprprprpr;
@@ -910,30 +892,30 @@ void Cal_function(void)
 			SpeedRef=SpeedRefRef*0.002;//1/500;//标幺值
 			rc1.TargetValue = SpeedRef;
 		   	//*****************Using_10A_as_basicCurrent***********************************//
-			Ia_sample_lp.xn=Ia[0];
-			Ib_sample_lp.xn=Ib[0];
-			Ic_sample_lp.xn=Ic[0];
-			Id_sample_lp.xn=Id[0];
-			Ie_sample_lp.xn=Ie[0];
-			If_sample_lp.xn=If[0];
-			LPFILTER_MACRO(Ia_sample_lp);
-			LPFILTER_MACRO(Ib_sample_lp);
-			LPFILTER_MACRO(Ic_sample_lp);
-			LPFILTER_MACRO(Id_sample_lp);
-			LPFILTER_MACRO(Ie_sample_lp);
-			LPFILTER_MACRO(If_sample_lp);
-			clarke1.As=Ia_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 0*0.5235987756);//Ia[0]*0.1; //
-			clarke1.Bs=Ib_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 1*0.5235987756);//Ib[0]*0.1; //
-			clarke1.Cs=Ic_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 4*0.5235987756);//Ic[0]*0.1; //
-			clarke1.Ds=Id_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 5*0.5235987756);//Id[0]*0.1; //
-			clarke1.Es=Ie_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 8*0.5235987756);//Ie[0]*0.1; //
-			clarke1.Fs=If_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 9*0.5235987756);//If[0]*0.1; //
-//			clarke1.As=Ia[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 0*0.5235987756);//Ia[0]*0.1; //
-//			clarke1.Bs=Ib[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 1*0.5235987756);//Ib[0]*0.1; //
-//			clarke1.Cs=Ic[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 4*0.5235987756);//Ic[0]*0.1; //
-//			clarke1.Ds=Id[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 5*0.5235987756);//Id[0]*0.1; //
-//			clarke1.Es=Ie[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 8*0.5235987756);//Ie[0]*0.1; //
-//			clarke1.Fs=If[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 9*0.5235987756);//If[0]*0.1; //
+//			Ia_sample_lp.xn=Ia[0];
+//			Ib_sample_lp.xn=Ib[0];
+//			Ic_sample_lp.xn=Ic[0];
+//			Id_sample_lp.xn=Id[0];
+//			Ie_sample_lp.xn=Ie[0];
+//			If_sample_lp.xn=If[0];
+//			LPFILTER_MACRO(Ia_sample_lp);
+//			LPFILTER_MACRO(Ib_sample_lp);
+//			LPFILTER_MACRO(Ic_sample_lp);
+//			LPFILTER_MACRO(Id_sample_lp);
+//			LPFILTER_MACRO(Ie_sample_lp);
+//			LPFILTER_MACRO(If_sample_lp);
+//			clarke1.As=Ia_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 0*0.5235987756);//Ia[0]*0.1; //
+//			clarke1.Bs=Ib_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 1*0.5235987756);//Ib[0]*0.1; //
+//			clarke1.Cs=Ic_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 4*0.5235987756);//Ic[0]*0.1; //
+//			clarke1.Ds=Id_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 5*0.5235987756);//Id[0]*0.1; //
+//			clarke1.Es=Ie_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 8*0.5235987756);//Ie[0]*0.1; //
+//			clarke1.Fs=If_sample_lp.yn; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 9*0.5235987756);//If[0]*0.1; //
+			clarke1.As=Ia[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 0*0.5235987756);//Ia[0]*0.1; //
+			clarke1.Bs=Ib[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 1*0.5235987756);//Ib[0]*0.1; //
+			clarke1.Cs=Ic[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 4*0.5235987756);//Ic[0]*0.1; //
+			clarke1.Ds=Id[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 5*0.5235987756);//Id[0]*0.1; //
+			clarke1.Es=Ie[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 8*0.5235987756);//Ie[0]*0.1; //
+			clarke1.Fs=If[0]; //cos(temPWM2_INT_Num*0.001*2*3.1415 - 9*0.5235987756);//If[0]*0.1; //
 
 			CLARKE_MACRO(clarke1);
 
@@ -959,13 +941,13 @@ void Cal_function(void)
 
 			pid1_ix.Kp = My_ixy_Kp;
 			pid1_ix.Ki = My_ixy_Ki*T;
-			pid1_ix.OutMax=0.1*VdcLink;
-			pid1_ix.OutMin=-0.1*VdcLink;
+			pid1_ix.OutMax=0.5*VdcLink;
+			pid1_ix.OutMin=-0.5*VdcLink;
 
 			pid1_iy.Kp = My_ixy_Kp;
 			pid1_iy.Ki = My_ixy_Ki*T;
-			pid1_iy.OutMax=0.1*VdcLink;
-			pid1_iy.OutMin=-0.1*VdcLink;
+			pid1_iy.OutMax=0.5*VdcLink;
+			pid1_iy.OutMin=-0.5*VdcLink;
 
 			pid1_spd.Kp=My_sp_kp;
 			pid1_spd.Ki=My_sp_ki*T*SpeedLoopPrescaler*5;//My_sp_ki*T*SpeedLoopPrescaler/0.2;
@@ -980,6 +962,7 @@ void Cal_function(void)
 					pid1_spd.Ref = rc1.SetpointValue*500;
 					//pid1_spd.Fdb = (-1)*SpeedRpm_Lprprprpr*0.0005;//2000 ;标幺值
 				    pid1_spd.Fdb = -Speed_from_theta;
+				    //pid1_spd.Fdb = -qep_posspeed.SpeedRpm_pr;
 					PID_MACRO(pid1_spd);
 					SpeedLoopCount=1;
 			}
@@ -991,17 +974,8 @@ void Cal_function(void)
 			pid1_id.Fdb = park1.Ds;
 			PID_MACRO(pid1_id);
 
-//		   	if(Decr_Speed_Flag==1)
-//		   		{
-//		   		pid1_iq.Ref = 0; //remove speed loop, and let iq_ref=0, to decrease voltage, then to decrease speed
-//		   		}
-//		   	else
-//		   		{
-//		   		pid1_iq.Ref = pid1_spd.Out;        //IqRef:iq环参考电流, normal_mode
-//		   		}
-
-			pid1_iq.Ref = iq_temp;
-
+			pid1_iq.Ref = pid1_spd.Out;
+//			pid1_iq.Ref = iq_temp;
             pid1_iq.Fdb = park1.Qs;     //iq环实际电流
 			PID_MACRO(pid1_iq);
 //**************************************************//
@@ -1359,26 +1333,26 @@ __interrupt void epwm9_isr(void)
 		if(show_compensation==0)
 		{
 		    DacaRegs.DACVALS.bit.DACVALS=(Uint16)(2048+500*pid1_iq.Fdb);
-		    DacbRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(100*Sin2Theta);
+		    DacbRegs.DACVALS.bit.DACVALS=(Uint16)(2048 + 500 * pid1_iq.Ref);
 		    DaccRegs.DACVALS.bit.DACVALS=(Uint16)(VdcLink*20);
 		}
 		if(show_compensation==1)
 		{
-			DacaRegs.DACVALS.bit.DACVALS=(Uint16)(2048+500*pid1_id.Fdb);
-		    DacbRegs.DACVALS.bit.DACVALS=(Uint16)(Speed_from_theta*50);
+            DacaRegs.DACVALS.bit.DACVALS=(Uint16)(2048+500*pid1_id.Fdb);
+            DacbRegs.DACVALS.bit.DACVALS=(Uint16)(2048 + 500 * pid1_id.Ref);
 		    DaccRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(Theta_error);
 
 		}
 		if(show_compensation==2)
 		{
-		    DacaRegs.DACVALS.bit.DACVALS=(Uint16)(Theta*200);
-		    DacbRegs.DACVALS.bit.DACVALS=(Uint16)(tempSpeed_elec*200*two_pi);
+            DacaRegs.DACVALS.bit.DACVALS=(Uint16)(1000+1000*pid1_ix.Fdb);
+            DacbRegs.DACVALS.bit.DACVALS=(Uint16)(1000+1000*pid1_ix.Ref);
 		    DaccRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(Theta_error);
 		}
 		if(show_compensation==3)
 		{
-		    DacaRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(100*Cos2Theta);
-		    DacbRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(100*Sin2Theta);
+            DacaRegs.DACVALS.bit.DACVALS=(Uint16)(2048+500*pid1_iy.Fdb);
+            DacbRegs.DACVALS.bit.DACVALS=(Uint16)(2048 + 500 * pid1_iy.Ref);
 		    DaccRegs.DACVALS.bit.DACVALS=(Uint16)show_current_by_DAC(pIalpha2);
 		}
 		if(show_compensation==4)
@@ -1409,16 +1383,26 @@ __interrupt void epwm9_isr(void)
 //	PieCtrlRegs.PIEACK.all = PIEACK_GROUP3; // Acknowledge this interrupt to receive more interrupts from group
 //
 //}
-
-
-
 float t_minus=0.06;
+float t1_c1=0;
+float t2_c1=0;
+float t3_c1=0;
+float t4_c1=0;
 
+float t1_c2=0;
+float t2_c2=0;
+float t3_c2=0;
+float t4_c2=0;
 
+double t1_compensation=0;
+double t2_compensation=0;
+double t3_compensation=0;
+double t4_compensation=0;
 
 void SVGEN_SIX_PHASE(void)
 {
-
+    t1_c1=0;t2_c1=0;t3_c1=0;t4_c1=0;
+    t1_c2=0;t2_c2=0;t3_c2=0;t4_c2=0;
 	temp_sv1 = svgen_dq1.Ualpha*0.26794919;  // Ualpha*tan(15)
 	temp_sv2 = svgen_dq1.Ubeta*0.26794919;   // Ubeta*tan(15)
 //**********************section judgement************************************//
@@ -1486,41 +1470,56 @@ void SVGEN_SIX_PHASE(void)
 	t3=vector_inversion_matrix[2][0]*svgen_dq1.Ualpha + vector_inversion_matrix[2][1]*svgen_dq1.Ubeta + vector_inversion_matrix[2][2]*svgen_dq1.Ux + vector_inversion_matrix[2][3]*svgen_dq1.Uy;
 	t4=vector_inversion_matrix[3][0]*svgen_dq1.Ualpha + vector_inversion_matrix[3][1]*svgen_dq1.Ubeta + vector_inversion_matrix[3][2]*svgen_dq1.Ux + vector_inversion_matrix[3][3]*svgen_dq1.Uy;
 
-	if(t1<0){t1=0;}
-	if(t2<0){t2=0;}
-	if(t3<0){t3=0;}
-	if(t4<0){t4=0;}
-
     t1=t1/VdcLink;
     t2=t2/VdcLink;
     t3=t3/VdcLink;
 	t4=t4/VdcLink;
 
+    if(t1<0)
+    {
+        t1_c1=(-t1)<0.3?(-t1):0.3;
+        t1=0;
+    }
+    if(t2<0)
+    {
+        t2_c1=(-t2)<0.3?(-t2):0.3;
+        t2=0;
+    }
+    if(t3<0)
+    {
+        t3_c1=(-t3)<0.3?(-t3):0.3;
+        t3=0;
+    }
+    if(t4<0)
+    {
+        t4_c1=(-t4)<0.3?(-t4):0.3;
+        t4=0;
+    }
 
     if(NVC_start_flag==1)
     {
     	//t1为例，若t1<4.7us,t1=5us,t1_compensation=5us-t1作为负矢量补偿（之所以将t1判断条件设为4.7us，是为了出现小于0.3us的负矢量，负矢量太小没有意义）
     	if(t1<0.16)
     	{
-    		t1_compensation=0.16-t1;
+    		t1_c2=0.16-t1;
     		t1=0.16;
     		t1_negtive_vector_flag=1;
     	}
     	else
     	{
-    		t1_compensation=0;
+    		t1_c2=0;
     		t1_negtive_vector_flag=0;
     	}
 
     	if(t2<0.16)
     	{
-    		t2_compensation=0.16-t2;
+    		t2_c2=0.16-t2;
     		t2=0.16;
     		t2_negtive_vector_flag=1;
     	}
     	else
     	{
-    		t2_compensation=0;
+    		t2_c2=0;
     		t2_negtive_vector_flag=0;
     	}
     }
@@ -1528,19 +1527,20 @@ void SVGEN_SIX_PHASE(void)
     {
     	t1_negtive_vector_flag=0;
     	t2_negtive_vector_flag=0;
-    	t1_compensation=0;
-		t2_compensation=0;
+    	t1_c2=0;
+		t2_c2=0;
     }
 
     t_sum=t1+t2+t3+t4;
 
-    if(t_sum>0.4)
+    if(t_sum>0.9)
     {
-    	t1=0.4*(t1/t_sum);
-    	t2=0.4*(t2/t_sum);
-    	t3=0.4*(t3/t_sum);
-    	t4=0.4*(t4/t_sum);
-    	t_sum=0.4;
+    	t1=0.9*(t1/t_sum);
+    	t2=0.9*(t2/t_sum);
+    	t3=0.9*(t3/t_sum);
+    	t4=0.9*(t4/t_sum);
+
+    	t_sum=0.9;
     }
 	t5 = 1-t_sum;
 //********************************************************************************//
@@ -1570,14 +1570,17 @@ void SVGEN_SIX_PHASE(void)
 		tx6 = tx5 + t4;
 	}
 
-	tx1 = EPWM_period*tx1;
-	tx2 = EPWM_period*tx2;
-	tx3 = EPWM_period*tx3;
-	tx4 = EPWM_period*tx4;
-	tx5 = EPWM_period*tx5;
-	tx6 = EPWM_period*tx6;
-	t1_compensation = EPWM_period*t1_compensation;
-	t2_compensation = EPWM_period*t2_compensation;
+	tx1 = tx1 * EPWM_period;
+	tx2 = tx2 * EPWM_period;
+	tx3 = tx3 * EPWM_period;
+	tx4 = tx4 * EPWM_period;
+	tx5 = tx5 * EPWM_period;
+	tx6 = tx6 * EPWM_period;
+
+	t1_compensation = (t1_c1+t1_c2) * EPWM_period;
+	t2_compensation = (t2_c1+t2_c2) * EPWM_period;
+    t3_compensation = t3_c1 * EPWM_period;
+    t4_compensation = t4_c1 * EPWM_period;
 
 	Epwm_CMPAB_assignment();
 
@@ -1676,7 +1679,7 @@ void InitEPWM_SOC_ADC()
 	EPwm6Regs.ETSEL.bit.SOCBEN = 1;  // Enable the ADC Start of Conversion A (EPWMxSOCB) Pulse. =1: Enable EPWMxSOCB pulse.
 
 	// Interrupt where we will change the Deadband
-    EPwm6Regs.ETSEL.bit.INTSEL =ET_CTRU_CMPB;  // ET_CTRU_CMPA;   // ET_CTR_ZERO;    // Select INT on Zero event  ET_CTRD_CMPA
+    EPwm6Regs.ETSEL.bit.INTSEL =ET_CTRU_CMPA;  // ET_CTRU_CMPA;   // ET_CTR_ZERO;    // Select INT on Zero event  ET_CTRD_CMPA
     EPwm6Regs.ETSEL.bit.INTEN = 1;             // Enable INT
     EPwm6Regs.ETPS.bit.INTPRD = ET_1ST;        // Generate INT on 3rd event
 
@@ -2541,16 +2544,16 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM05_PhaseB_temp = tx6;
 
 			CompareA_EPWM11_PhaseC_temp = tx3;  //PhaseC
-			CompareB_EPWM11_PhaseC_temp = tx5+t1_compensation+t2_compensation;
+			CompareB_EPWM11_PhaseC_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx3;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx2;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx4+t2_compensation;
+			CompareB_EPWM02_PhaseE_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx1;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx4;
+			CompareB_EPWM03_PhaseF_temp = tx4+t4_compensation+t3_compensation;
 
 			break;
 
@@ -2565,19 +2568,19 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM11_PhaseC_temp = tx6+t1_compensation+t2_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx3;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx5+t1_compensation+t2_compensation;
+			CompareB_EPWM01_PhaseD_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx3;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx2;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx4+t2_compensation;
+			CompareB_EPWM03_PhaseF_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			break;
 
 		case 3:
 			CompareA_EPWM12_PhaseA_temp = tx1;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx5;
+			CompareB_EPWM12_PhaseA_temp = tx5+t4_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx1;  //PhaseB
 			CompareB_EPWM05_PhaseB_temp = tx6;
@@ -2589,19 +2592,19 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM01_PhaseD_temp = tx6+t1_compensation+t2_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx3;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx3;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			break;
 
 		case 4:
 			CompareA_EPWM12_PhaseA_temp = tx1;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx4;
+			CompareB_EPWM12_PhaseA_temp = tx4+t3_compensation+t4_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx1;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx5;
+			CompareB_EPWM05_PhaseB_temp = tx5+t4_compensation;
 
 	    	CompareA_EPWM11_PhaseC_temp = tx1;  //PhaseC
 			CompareB_EPWM11_PhaseC_temp = tx6;
@@ -2610,19 +2613,19 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM01_PhaseD_temp = tx6+t1_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx3;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM02_PhaseE_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx3;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			break;
 
 		case 5:
 			CompareA_EPWM12_PhaseA_temp = tx2;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx4+t2_compensation;
+			CompareB_EPWM12_PhaseA_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx1;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx4;
+			CompareB_EPWM05_PhaseB_temp = tx4+t4_compensation+t3_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx1;  //PhaseC
 			CompareB_EPWM11_PhaseC_temp = tx6;
@@ -2631,19 +2634,19 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM01_PhaseD_temp = tx6;
 
 			CompareA_EPWM02_PhaseE_temp = tx3;  //PhaseE
-	    	CompareB_EPWM02_PhaseE_temp = tx5+t1_compensation+t2_compensation;
+	    	CompareB_EPWM02_PhaseE_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx3;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM03_PhaseF_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			break;
 
 		case 6:
 			CompareA_EPWM12_PhaseA_temp = tx3;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx2;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx4+t2_compensation;
+			CompareB_EPWM05_PhaseB_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx1;  //PhaseC
 			CompareB_EPWM11_PhaseC_temp = tx6;
@@ -2655,19 +2658,19 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM02_PhaseE_temp = tx6+t1_compensation+t2_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx3;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx5+t1_compensation+t2_compensation;
+			CompareB_EPWM03_PhaseF_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			break;
 
 		case 7:
 			CompareA_EPWM12_PhaseA_temp = tx3;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx3;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx1;  //PhaseC
-			CompareB_EPWM11_PhaseC_temp = tx5;
+			CompareB_EPWM11_PhaseC_temp = tx5+t4_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx1;  //PhaseD
 			CompareB_EPWM01_PhaseD_temp = tx6;
@@ -2681,16 +2684,16 @@ void Epwm_CMPAB_assignment(void)
 
 		case 8:
 			CompareA_EPWM12_PhaseA_temp = tx3;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM12_PhaseA_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx3;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx1;  //PhaseC
-			CompareB_EPWM11_PhaseC_temp = tx4;
+			CompareB_EPWM11_PhaseC_temp = tx4+t3_compensation+t4_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx1;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx5;
+			CompareB_EPWM01_PhaseD_temp = tx5+t4_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx1;  //PhaseE
 			CompareB_EPWM02_PhaseE_temp = tx6;
@@ -2702,16 +2705,16 @@ void Epwm_CMPAB_assignment(void)
 
 		case 9:
 			CompareA_EPWM12_PhaseA_temp = tx3;  //PhaseA
-			CompareB_EPWM12_PhaseA_temp = tx5+t1_compensation+t2_compensation;
+			CompareB_EPWM12_PhaseA_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx3;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM05_PhaseB_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx2;  //PhaseC
-		    CompareB_EPWM11_PhaseC_temp = tx4+t2_compensation;
+		    CompareB_EPWM11_PhaseC_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx1;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx4;
+			CompareB_EPWM01_PhaseD_temp = tx4+t4_compensation+t3_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx1;  //PhaseE
 			CompareB_EPWM02_PhaseE_temp = tx6;
@@ -2726,13 +2729,13 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM12_PhaseA_temp = tx6+t1_compensation+t2_compensation;
 
 			CompareA_EPWM05_PhaseB_temp = tx3;  //PhaseB
-			CompareB_EPWM05_PhaseB_temp = tx5+t1_compensation+t2_compensation;
+			CompareB_EPWM05_PhaseB_temp = tx5+t1_compensation+t2_compensation+t3_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx3;  //PhaseC
-			CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx2;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx4+t2_compensation;
+			CompareB_EPWM01_PhaseD_temp = tx4+t2_compensation+t4_compensation+t3_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx1;  //PhaseE
 			CompareB_EPWM02_PhaseE_temp = tx6;
@@ -2750,13 +2753,13 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM05_PhaseB_temp = tx6+t1_compensation+t2_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx3;  //PhaseC
-			CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx3;  //PhaseD
-			CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation;
+			CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx1;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx5;
+			CompareB_EPWM02_PhaseE_temp = tx5+t4_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx1;  //PhaseF
 			CompareB_EPWM03_PhaseF_temp = tx6;
@@ -2772,16 +2775,16 @@ void Epwm_CMPAB_assignment(void)
 			CompareB_EPWM05_PhaseB_temp = tx6+t1_compensation;
 
 			CompareA_EPWM11_PhaseC_temp = tx3;  //PhaseC
-		    CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation;
+		    CompareB_EPWM11_PhaseC_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM01_PhaseD_temp = tx3;  //PhaseD
-	    	CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation;
+	    	CompareB_EPWM01_PhaseD_temp = tx4+t1_compensation+t2_compensation+t3_compensation+t4_compensation;
 
 			CompareA_EPWM02_PhaseE_temp = tx1;  //PhaseE
-			CompareB_EPWM02_PhaseE_temp = tx4;
+			CompareB_EPWM02_PhaseE_temp = tx4+t3_compensation+t4_compensation;
 
 			CompareA_EPWM03_PhaseF_temp = tx1;  //PhaseF
-			CompareB_EPWM03_PhaseF_temp = tx5;
+			CompareB_EPWM03_PhaseF_temp = tx5+t4_compensation;
 
 			break;
 	}
@@ -2795,7 +2798,7 @@ void Epwm_CMPAB_assignment(void)
 
 int limit_CMPB(int CMPB)
 {
-	if (CMPB>2500) {CMPB=2500;}
+	if (CMPB>2450) {CMPB=2450;}
 	return CMPB;
 }
 double w, den, b0_num, a1_num, a2_num;
